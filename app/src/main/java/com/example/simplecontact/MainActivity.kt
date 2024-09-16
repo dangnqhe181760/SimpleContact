@@ -2,9 +2,9 @@ package com.example.simplecontact
 
 import android.R
 import android.annotation.SuppressLint
+import android.content.ContentProviderOperation
 import android.os.Bundle
 import android.provider.ContactsContract
-import android.provider.ContactsContract.CommonDataKinds
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -69,9 +69,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
-
-data class Contact(var name: String, var phoneNumber: String)
-
 data class Contact2(
     val id: String = "",
     val name: String = "",
@@ -80,19 +77,14 @@ data class Contact2(
 )
 
 
-class MainActivity<ImageVector> : ComponentActivity() {
-    private var contacts = mutableStateOf(
-        listOf(
-            Contact("John Doe", "123-456-7890"),
-            Contact("Jane Smith", "987-654-3210"),
-            Contact("Bob Johnson", "555-555-5555")
-        )
-    )
+class MainActivity : ComponentActivity() {
+    var contacts: MutableState<List<Contact2>> = mutableStateOf(emptyList())
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
             Scaffold(
                 modifier = Modifier.semantics {
@@ -114,13 +106,15 @@ class MainActivity<ImageVector> : ComponentActivity() {
                             ),
                         ),
                 ) {
+                    // Call HomePage which reacts to contact changes
                     HomePage()
                 }
             }
-            val myList = getNamePhoneDetails()
-            for (i in myList) {
-                Log.d("name", i.toString())
-            }
+
+            // Initialize contacts asynchronously outside the composable
+
+                contacts.value = getNamePhoneDetails()
+
         }
     }
 
@@ -128,55 +122,93 @@ class MainActivity<ImageVector> : ComponentActivity() {
     @SuppressLint("Range")
     fun getNamePhoneDetails(): List<Contact2> {
         val names = ArrayList<Contact2>()
-        val context = LocalContext.current
-//        @SuppressLint("InlinedApi") val projection = arrayOf<String>(
-//            ContactsContract.Contacts._ID,
-//            ContactsContract.Contacts.DISPLAY_NAME,
-//            ContactsContract.Contacts.HAS_PHONE_NUMBER,
-//        )
-        val cur = context.contentResolver.query(
+        val mApplication = LocalContext.current
+        val cur = mApplication.contentResolver.query(
             ContactsContract.Contacts.CONTENT_URI, null,
-            null, null, null)
+            null, null, null
+        )
 
-        if (cur!!.count > 0) {
+        if (cur != null && cur.count > 0) {
             while (cur.moveToNext()) {
                 val id = cur.getString(cur.getColumnIndex(ContactsContract.CommonDataKinds.Email.NAME_RAW_CONTACT_ID))
                 Log.d("id", id)
-                var cur2 = context.contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
-                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
-                    arrayOf(id), null);
+
                 var number = ""
+                val cur2 = mApplication.contentResolver.query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
+                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
+                    arrayOf(id), null
+                )
+
                 if (cur2 != null && cur2.moveToFirst()) {
-                    number = cur2.getString(cur2.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER));
-                    cur2.close();
+                    number = cur2.getString(cur2.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER))
+                    cur2.close()
                 }
+
                 val name = cur.getString(cur.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME))
-                var cur3 = context.contentResolver.query(ContactsContract.CommonDataKinds.Email.CONTENT_URI, null,
-                    ContactsContract.CommonDataKinds.Email.CONTACT_ID + " = ?",
-                    arrayOf(id), null);
+
                 var email = ""
+                val cur3 = mApplication.contentResolver.query(
+                    ContactsContract.CommonDataKinds.Email.CONTENT_URI, null,
+                    ContactsContract.CommonDataKinds.Email.CONTACT_ID + " = ?",
+                    arrayOf(id), null
+                )
+
                 if (cur3 != null && cur3.moveToFirst()) {
-                    email = cur3.getString(cur3.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS));
-                    cur3.close();
+                    email = cur3.getString(cur3.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS))
+                    cur3.close()
                 }
-                names.add(Contact2(id, name, number,email))
+
+                names.add(Contact2(id, name, number, email))
             }
+            cur.close()
         }
         return names
     }
 
     @Composable
     fun HomePage() {
-        var contactToRemove by remember { mutableStateOf<Contact?>(null) }
+        val contactList by remember { contacts } // Observe the state for changes
+        var contactToRemove by remember { mutableStateOf<Contact2?>(null) }
         val showRemoveContactDialog = remember { mutableStateOf(false) }
         val showLogoutDialog = remember { mutableStateOf(false) }
         if (showLogoutDialog.value) {
-            CustomDialog(
+                CustomDialog(
                 onAddValueSuccess = { addValue ->
                     showLogoutDialog.value = false
                     val updatedContacts = contacts.value.toMutableList()
                     updatedContacts.add(addValue)
                     contacts.value = updatedContacts
+                    val cpo = ArrayList<ContentProviderOperation>()
+                    val rawContactId = cpo.size
+                    cpo.add(ContentProviderOperation.newInsert(
+                        ContactsContract.RawContacts.CONTENT_URI)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                        .build())
+                    cpo.add(ContentProviderOperation.newInsert(
+                        ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.RawContacts.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.RawContacts.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, addValue.name)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME, "")
+                        .build())
+                    cpo.add(ContentProviderOperation.newInsert(
+                        ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.RawContacts.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.RawContacts.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, addValue.numbers)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                        .build())
+                    cpo.add(ContentProviderOperation.newInsert(
+                        ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.RawContacts.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.RawContacts.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Email.DATA, addValue.emails)
+                        .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_WORK)
+                        .build())
+                    contentResolver.applyBatch(ContactsContract.AUTHORITY, cpo)
+
                 },
                 showDialog = showLogoutDialog
             )
@@ -195,20 +227,21 @@ class MainActivity<ImageVector> : ComponentActivity() {
                 Text(text = "Add new contact")
             }
 
-            contactToRemove?.let { contact ->
+            contactToRemove?.let { contact2 ->
                 DialogExample(
                     showDialog = showRemoveContactDialog,
                     onConfirm = {
                         val updatedContacts = contacts.value.toMutableList()
-                        updatedContacts.remove(contact)
+                        updatedContacts.remove(contact2)
                         contacts.value = updatedContacts
                     },
-                    contactName = contact.name
+                    contactName = contact2.name
                 )
             }
 
-            DisplayList(contacts = contacts.value, onContactClick = { contact ->
-                contactToRemove = contact
+            // Pass the updated contact list
+            DisplayList(contacts = contactList, onContactClick = { contact2 ->
+                contactToRemove = contact2
                 showRemoveContactDialog.value = true
             })
         }
@@ -242,124 +275,8 @@ class MainActivity<ImageVector> : ComponentActivity() {
         }
     }
 
-
-
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun CustomDialog(onAddValueSuccess: (Contact) -> Unit, showDialog: MutableState<Boolean>) {
-        val txtFieldError = remember { mutableStateOf("") }
-        val name = remember { mutableStateOf("") }
-        val phoneNumber = remember { mutableStateOf("") }
-        Dialog(onDismissRequest = {}) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Add new contact",
-                                style = TextStyle(
-                                    fontSize = 24.sp,
-                                    fontFamily = FontFamily.Default,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                            Icon(
-                                imageVector = Icons.Filled.Clear,
-                                contentDescription = "",
-                                tint = colorResource(android.R.color.darker_gray),
-                                modifier = Modifier
-                                    .width(30.dp)
-                                    .height(30.dp)
-                                    .clickable {
-                                        showDialog.value = false
-                                    }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-                        //TextField(value = name.value, onValueChange = { name.value = it })
-                        TextField(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    BorderStroke(
-                                        width = 2.dp,
-                                        color = colorResource(id = if (txtFieldError.value.isEmpty()) R.color.holo_green_light else R.color.holo_red_dark)
-                                    ),
-                                    shape = RoundedCornerShape(50)
-                                ),
-                            colors = TextFieldDefaults.textFieldColors(
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            placeholder = { Text(text = "Enter name") },
-                            value = name.value,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                            onValueChange = {
-                                name.value = it.take(10)
-                            })
-
-                        Spacer(modifier = Modifier.height(20.dp))
-                        //TextField(value = phoneNumber.value, onValueChange = { phoneNumber.value = it })
-                        TextField(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    BorderStroke(
-                                        width = 2.dp,
-                                        color = colorResource(id = if (txtFieldError.value.isEmpty()) R.color.holo_green_light else R.color.holo_red_dark)
-                                    ),
-                                    shape = RoundedCornerShape(50)
-                                ),
-                            colors = TextFieldDefaults.textFieldColors(
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            placeholder = { Text(text = "Enter phone number") },
-                            value = phoneNumber.value,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                            onValueChange = {
-                                phoneNumber.value = it.take(10)
-                            })
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Box(modifier = Modifier.padding(40.dp, 0.dp, 40.dp, 0.dp)) {
-                            Button(
-                                onClick = {
-                                    if (name.value.isEmpty()) {
-                                        txtFieldError.value = "Field can not be empty"
-                                        return@Button
-                                    }
-                                    //chỗ này trả data ngược ra ngoài đọc thêm về high order fucntion
-                                    onAddValueSuccess.invoke(Contact(name.value, phoneNumber.value))
-                                },
-                                shape = RoundedCornerShape(50.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp)
-                            ) {
-                                Text(text = "Done")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-    @Composable
-    fun DisplayList(contacts: List<Contact>, onContactClick: (Contact) -> Unit) {
+    fun DisplayList(contacts: List<Contact2>, onContactClick: (Contact2) -> Unit) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -372,10 +289,11 @@ class MainActivity<ImageVector> : ComponentActivity() {
                 ),
                 fontWeight = FontWeight.Black
             )
-            LazyColumn() {
+
+            LazyColumn {
                 items(contacts.size) { index ->
                     Text(
-                        text = contacts[index].name + " - " + contacts[index].phoneNumber,
+                        text = contacts[index].name + " - " + contacts[index].numbers + " - " + contacts[index].emails,
                         modifier = Modifier
                             .padding(16.dp)
                             .clickable {
@@ -389,6 +307,118 @@ class MainActivity<ImageVector> : ComponentActivity() {
                         fontWeight = FontWeight.Black
                     )
                     HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState<Boolean>) {
+    val txtFieldError = remember { mutableStateOf("") }
+    val name = remember { mutableStateOf("") }
+    val phoneNumber = remember { mutableStateOf("") }
+    Dialog(onDismissRequest = {}) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White
+        ) {
+            Box(
+                contentAlignment = Alignment.Center
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Add new contact",
+                            style = TextStyle(
+                                fontSize = 24.sp,
+                                fontFamily = FontFamily.Default,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Icon(
+                            imageVector = Icons.Filled.Clear,
+                            contentDescription = "",
+                            tint = colorResource(android.R.color.darker_gray),
+                            modifier = Modifier
+                                .width(30.dp)
+                                .height(30.dp)
+                                .clickable {
+                                    showDialog.value = false
+                                }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    //TextField(value = name.value, onValueChange = { name.value = it })
+                    TextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                BorderStroke(
+                                    width = 2.dp,
+                                    color = colorResource(id = if (txtFieldError.value.isEmpty()) R.color.holo_green_light else R.color.holo_red_dark)
+                                ),
+                                shape = RoundedCornerShape(50)
+                            ),
+                        colors = TextFieldDefaults.textFieldColors(
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        placeholder = { Text(text = "Enter name") },
+                        value = name.value,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        onValueChange = {
+                            name.value = it.take(10)
+                        })
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    //TextField(value = phoneNumber.value, onValueChange = { phoneNumber.value = it })
+                    TextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                BorderStroke(
+                                    width = 2.dp,
+                                    color = colorResource(id = if (txtFieldError.value.isEmpty()) R.color.holo_green_light else R.color.holo_red_dark)
+                                ),
+                                shape = RoundedCornerShape(50)
+                            ),
+                        colors = TextFieldDefaults.textFieldColors(
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        placeholder = { Text(text = "Enter phone number") },
+                        value = phoneNumber.value,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        onValueChange = {
+                            phoneNumber.value = it.take(10)
+                        })
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Box(modifier = Modifier.padding(40.dp, 0.dp, 40.dp, 0.dp)) {
+                        Button(
+                            onClick = {
+                                if (name.value.isEmpty()) {
+                                    txtFieldError.value = "Field can not be empty"
+                                    return@Button
+                                }
+                                //chỗ này trả data ngược ra ngoài đọc thêm về high order fucntion
+                                onAddValueSuccess.invoke(Contact2("",name.value, phoneNumber.value,""))
+                            },
+                            shape = RoundedCornerShape(50.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        ) {
+                            Text(text = "Done")
+                        }
+                    }
                 }
             }
         }
