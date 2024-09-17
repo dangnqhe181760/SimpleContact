@@ -10,8 +10,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.semantics
@@ -68,6 +71,7 @@ import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+
 
 data class Contact2(
     val id: String = "",
@@ -170,7 +174,9 @@ class MainActivity : ComponentActivity() {
     fun HomePage() {
         val contactList by remember { contacts } // Observe the state for changes
         var contactToRemove by remember { mutableStateOf<Contact2?>(null) }
+        var contactToUpdate by remember { mutableStateOf<Contact2?>(null) }
         val showRemoveContactDialog = remember { mutableStateOf(false) }
+        val showUpdateContactDialog = remember { mutableStateOf(false) }
         val showLogoutDialog = remember { mutableStateOf(false) }
         if (showLogoutDialog.value) {
                 CustomDialog(
@@ -232,18 +238,84 @@ class MainActivity : ComponentActivity() {
                     showDialog = showRemoveContactDialog,
                     onConfirm = {
                         val updatedContacts = contacts.value.toMutableList()
+                        val cpo = ArrayList<ContentProviderOperation>()
                         updatedContacts.remove(contact2)
+                        Log.d("deleting id", contact2.id)
+                        cpo.add(ContentProviderOperation.newDelete(ContactsContract.RawContacts.CONTENT_URI).withSelection(
+                            ContactsContract.RawContacts.CONTACT_ID + "=?", arrayOf(contact2.id)
+                        ).build())
+                        contentResolver.applyBatch(ContactsContract.AUTHORITY, cpo)
                         contacts.value = updatedContacts
                     },
                     contactName = contact2.name
                 )
             }
 
+            contactToUpdate?.let { contact4 ->
+                UpdateDialog(
+                    showDialog = showUpdateContactDialog,
+                    onAddValueSuccess = {
+                        showLogoutDialog.value = false
+                        val updatedContacts = contacts.value.toMutableList()
+                        val cpo = ArrayList<ContentProviderOperation>()
+                        cpo.add(
+                            ContentProviderOperation
+                                .newUpdate(ContactsContract.Data.CONTENT_URI)
+                                .withSelection(
+                                    ContactsContract.Data.CONTACT_ID + "=?" + " AND " + ContactsContract.Data.MIMETYPE + "=?",
+                                    arrayOf<String>(
+                                        contact4.id.toString(),
+                                        ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE.toString(),
+                                    )
+                                )
+                                .withValue(
+                                    ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME,
+                                    ""
+                                )
+                                .withValue(
+                                    ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME,
+                                    contact4.name.toString()
+                                )
+                                .build())
+                        cpo.add(
+                            ContentProviderOperation
+                                .newUpdate(ContactsContract.Data.CONTENT_URI)
+                                .withSelection(
+                                    ContactsContract.Data.CONTACT_ID + "=?" + " AND " + ContactsContract.Data.MIMETYPE + "=?" + " AND " + ContactsContract.CommonDataKinds.Organization.TYPE + "=?",
+                                    arrayOf<String>(
+                                        contact4.id.toString(),
+                                        ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE.toString(),
+                                        ContactsContract.CommonDataKinds.Phone.TYPE_HOME.toString()
+                                        )
+                                )
+                                .withValue(
+                                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                                    contact4.numbers.toString()
+                                )
+                                .build())
+                        updatedContacts[updatedContacts.indexOf(contact4)] = contact4
+                        Log.d("updating id", contact4.id)
+                        contentResolver.applyBatch(ContactsContract.AUTHORITY, cpo)
+                        contacts.value = updatedContacts
+                    },
+                    contact = contact4,
+                )
+            }
+
             // Pass the updated contact list
-            DisplayList(contacts = contactList, onContactClick = { contact2 ->
-                contactToRemove = contact2
-                showRemoveContactDialog.value = true
-            })
+            DisplayList(
+                contacts = contactList,
+                onClick = { contact2 ->
+                    contactToRemove = contact2
+                    showRemoveContactDialog.value = true
+                    Log.d("click", contact2.name)
+                },
+                onLongClickLabel = { contact3 ->
+                    contactToUpdate = contact3
+                    showUpdateContactDialog.value = true
+                    Log.d("long click", contact3.name)
+                },
+            )
         }
     }
 
@@ -275,8 +347,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    fun DisplayList(contacts: List<Contact2>, onContactClick: (Contact2) -> Unit) {
+    fun DisplayList(contacts: List<Contact2>, onClick: (Contact2) -> Unit, onLongClickLabel: (Contact2) -> Unit) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -296,9 +369,17 @@ class MainActivity : ComponentActivity() {
                         text = contacts[index].name + " - " + contacts[index].numbers + " - " + contacts[index].emails,
                         modifier = Modifier
                             .padding(16.dp)
-                            .clickable {
-                                Log.d("click", "click")
-                                onContactClick(contacts[index])
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onLongPress = {
+                                        // perform some action here..
+                                        onLongClickLabel.invoke(contacts[index])
+                                    },
+                                    onTap = {
+                                        // perform some action here..
+                                        onClick.invoke(contacts[index])
+                                    }
+                                )
                             },
                         style = TextStyle(
                             color = Color.Black,
@@ -423,4 +504,137 @@ fun CustomDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UpdateDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState<Boolean>, contact: Contact2) {
+    val txtFieldError = remember { mutableStateOf("") }
+    val name = remember { mutableStateOf("") }
+    val phoneNumber = remember { mutableStateOf("") }
+    if(showDialog.value){
+        Dialog(onDismissRequest = {}) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Update contact",
+                                style = TextStyle(
+                                    fontSize = 24.sp,
+                                    fontFamily = FontFamily.Default,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.Clear,
+                                contentDescription = "",
+                                tint = colorResource(android.R.color.darker_gray),
+                                modifier = Modifier
+                                    .width(30.dp)
+                                    .height(30.dp)
+                                    .clickable {
+                                        showDialog.value = false
+                                    }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+                        //TextField(value = name.value, onValueChange = { name.value = it })
+                        TextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    BorderStroke(
+                                        width = 2.dp,
+                                        color = colorResource(id = if (txtFieldError.value.isEmpty()) R.color.holo_green_light else R.color.holo_red_dark)
+                                    ),
+                                    shape = RoundedCornerShape(50)
+                                ),
+                            colors = TextFieldDefaults.textFieldColors(
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            placeholder = { Text(text = "Enter name") },
+                            value = name.value,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            onValueChange = {
+                                name.value = it.take(10)
+                            })
+
+                        Spacer(modifier = Modifier.height(20.dp))
+                        //TextField(value = phoneNumber.value, onValueChange = { phoneNumber.value = it })
+                        TextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    BorderStroke(
+                                        width = 2.dp,
+                                        color = colorResource(id = if (txtFieldError.value.isEmpty()) R.color.holo_green_light else R.color.holo_red_dark)
+                                    ),
+                                    shape = RoundedCornerShape(50)
+                                ),
+                            colors = TextFieldDefaults.textFieldColors(
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            placeholder = { Text(text = "Enter phone number") },
+                            value = phoneNumber.value,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            onValueChange = {
+                                phoneNumber.value = it.take(10)
+                            })
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Box(modifier = Modifier.padding(40.dp, 0.dp, 40.dp, 0.dp)) {
+                            Button(
+                                onClick = {
+                                    if (name.value.isEmpty()) {
+                                        txtFieldError.value = "Field can not be empty"
+                                        return@Button
+                                    }
+                                    //chỗ này trả data ngược ra ngoài đọc thêm về high order fucntion
+                                    onAddValueSuccess.invoke(Contact2(contact.id,name.value, phoneNumber.value,contact.emails))
+                                    showDialog.value = false
+                                },
+                                shape = RoundedCornerShape(50.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                            ) {
+                                Text(text = "Done")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Box(modifier = Modifier.padding(40.dp, 0.dp, 40.dp, 0.dp)) {
+                            Button(
+                                onClick = {
+                                    showDialog.value = false
+                                },
+                                shape = RoundedCornerShape(50.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                            ) {
+                                Text(text = "Cancel")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 }
