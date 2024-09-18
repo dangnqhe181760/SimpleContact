@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,15 +76,14 @@ import androidx.compose.ui.window.Dialog
 
 data class Contact2(
     val id: String = "",
-    val name: String = "",
-    val numbers: String = "",
+    var name: String = "",
+    var numbers: String = "",
     val emails: String = ""
 )
 
 
 class MainActivity : ComponentActivity() {
-    var contacts: MutableState<List<Contact2>> = mutableStateOf(emptyList())
-
+    val contacts: MutableState<List<Contact2>> = mutableStateOf(emptyList())
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
 
             // Initialize contacts asynchronously outside the composable
 
-                contacts.value = getNamePhoneDetails()
+            contacts.value = getNamePhoneDetails()
 
         }
     }
@@ -134,7 +134,8 @@ class MainActivity : ComponentActivity() {
 
         if (cur != null && cur.count > 0) {
             while (cur.moveToNext()) {
-                val id = cur.getString(cur.getColumnIndex(ContactsContract.CommonDataKinds.Email.NAME_RAW_CONTACT_ID))
+                val id =
+                    cur.getString(cur.getColumnIndex(ContactsContract.CommonDataKinds.Email.NAME_RAW_CONTACT_ID))
                 Log.d("id", id)
 
                 var number = ""
@@ -145,7 +146,8 @@ class MainActivity : ComponentActivity() {
                 )
 
                 if (cur2 != null && cur2.moveToFirst()) {
-                    number = cur2.getString(cur2.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER))
+                    number =
+                        cur2.getString(cur2.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER))
                     cur2.close()
                 }
 
@@ -159,7 +161,8 @@ class MainActivity : ComponentActivity() {
                 )
 
                 if (cur3 != null && cur3.moveToFirst()) {
-                    email = cur3.getString(cur3.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS))
+                    email =
+                        cur3.getString(cur3.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS))
                     cur3.close()
                 }
 
@@ -179,7 +182,7 @@ class MainActivity : ComponentActivity() {
         val showUpdateContactDialog = remember { mutableStateOf(false) }
         val showLogoutDialog = remember { mutableStateOf(false) }
         if (showLogoutDialog.value) {
-                CustomDialog(
+            CustomDialog(
                 onAddValueSuccess = { addValue ->
                     showLogoutDialog.value = false
                     val updatedContacts = contacts.value.toMutableList()
@@ -187,32 +190,77 @@ class MainActivity : ComponentActivity() {
                     contacts.value = updatedContacts
                     val cpo = ArrayList<ContentProviderOperation>()
                     val rawContactId = cpo.size
-                    cpo.add(ContentProviderOperation.newInsert(
-                        ContactsContract.RawContacts.CONTENT_URI)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
-                        .build())
-                    cpo.add(ContentProviderOperation.newInsert(
-                        ContactsContract.Data.CONTENT_URI)
-                        .withValueBackReference(ContactsContract.RawContacts.Data.RAW_CONTACT_ID, rawContactId)
-                        .withValue(ContactsContract.RawContacts.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
-                        .withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, addValue.name)
-                        .withValue(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME, "")
-                        .build())
-                    cpo.add(ContentProviderOperation.newInsert(
-                        ContactsContract.Data.CONTENT_URI)
-                        .withValueBackReference(ContactsContract.RawContacts.Data.RAW_CONTACT_ID, rawContactId)
-                        .withValue(ContactsContract.RawContacts.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, addValue.numbers)
-                        .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
-                        .build())
-                    cpo.add(ContentProviderOperation.newInsert(
-                        ContactsContract.Data.CONTENT_URI)
-                        .withValueBackReference(ContactsContract.RawContacts.Data.RAW_CONTACT_ID, rawContactId)
-                        .withValue(ContactsContract.RawContacts.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
-                        .withValue(ContactsContract.CommonDataKinds.Email.DATA, addValue.emails)
-                        .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_WORK)
-                        .build())
+                    cpo.add(
+                        ContentProviderOperation.newInsert(
+                            ContactsContract.RawContacts.CONTENT_URI
+                        )
+                            .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                            .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                            .build()
+                    )
+                    cpo.add(
+                        ContentProviderOperation.newInsert(
+                            ContactsContract.Data.CONTENT_URI
+                        )
+                            .withValueBackReference(
+                                ContactsContract.RawContacts.Data.RAW_CONTACT_ID,
+                                rawContactId
+                            )
+                            .withValue(
+                                ContactsContract.RawContacts.Data.MIMETYPE,
+                                ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE
+                            )
+                            .withValue(
+                                ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME,
+                                addValue.name
+                            )
+                            .withValue(
+                                ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME,
+                                ""
+                            )
+                            .build()
+                    )
+                    cpo.add(
+                        ContentProviderOperation.newInsert(
+                            ContactsContract.Data.CONTENT_URI
+                        )
+                            .withValueBackReference(
+                                ContactsContract.RawContacts.Data.RAW_CONTACT_ID,
+                                rawContactId
+                            )
+                            .withValue(
+                                ContactsContract.RawContacts.Data.MIMETYPE,
+                                ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE
+                            )
+                            .withValue(
+                                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                                addValue.numbers
+                            )
+                            .withValue(
+                                ContactsContract.CommonDataKinds.Phone.TYPE,
+                                ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE
+                            )
+                            .build()
+                    )
+                    cpo.add(
+                        ContentProviderOperation.newInsert(
+                            ContactsContract.Data.CONTENT_URI
+                        )
+                            .withValueBackReference(
+                                ContactsContract.RawContacts.Data.RAW_CONTACT_ID,
+                                rawContactId
+                            )
+                            .withValue(
+                                ContactsContract.RawContacts.Data.MIMETYPE,
+                                ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE
+                            )
+                            .withValue(ContactsContract.CommonDataKinds.Email.DATA, addValue.emails)
+                            .withValue(
+                                ContactsContract.CommonDataKinds.Email.TYPE,
+                                ContactsContract.CommonDataKinds.Email.TYPE_WORK
+                            )
+                            .build()
+                    )
                     contentResolver.applyBatch(ContactsContract.AUTHORITY, cpo)
 
                 },
@@ -241,64 +289,79 @@ class MainActivity : ComponentActivity() {
                         val cpo = ArrayList<ContentProviderOperation>()
                         updatedContacts.remove(contact2)
                         Log.d("deleting id", contact2.id)
-                        cpo.add(ContentProviderOperation.newDelete(ContactsContract.RawContacts.CONTENT_URI).withSelection(
-                            ContactsContract.RawContacts.CONTACT_ID + "=?", arrayOf(contact2.id)
-                        ).build())
+                        cpo.add(
+                            ContentProviderOperation.newDelete(ContactsContract.RawContacts.CONTENT_URI)
+                                .withSelection(
+                                    ContactsContract.RawContacts.CONTACT_ID + "=?",
+                                    arrayOf(contact2.id)
+                                ).build()
+                        )
                         contentResolver.applyBatch(ContactsContract.AUTHORITY, cpo)
-                        contacts.value = updatedContacts
+                        contacts.value = updatedContacts.toList()
                     },
                     contactName = contact2.name
                 )
             }
 
-            contactToUpdate?.let { contact4 ->
+            contactToUpdate?.let { contact3 ->
                 UpdateDialog(
                     showDialog = showUpdateContactDialog,
-                    onAddValueSuccess = {
-                        showLogoutDialog.value = false
+                    onAddValueSuccess = { addValue ->
+                        showUpdateContactDialog.value = false
                         val updatedContacts = contacts.value.toMutableList()
+                        Log.d("updating id", contact3.id)
+                        contact3.numbers = addValue.numbers
+                        contact3.name = addValue.name
+                        updatedContacts[updatedContacts.indexOf(contact3)] = contact3
+                        contacts.value = updatedContacts.toList()
                         val cpo = ArrayList<ContentProviderOperation>()
+                        Log.d("name", addValue.name)
+                        Log.d("number", addValue.numbers)
                         cpo.add(
                             ContentProviderOperation
                                 .newUpdate(ContactsContract.Data.CONTENT_URI)
                                 .withSelection(
-                                    ContactsContract.Data.CONTACT_ID + "=?" + " AND " + ContactsContract.Data.MIMETYPE + "=?",
-                                    arrayOf<String>(
-                                        contact4.id.toString(),
-                                        ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE.toString(),
+                                    ContactsContract.Data.RAW_CONTACT_ID + "=?" + " AND " + ContactsContract.Data.MIMETYPE + "=?",
+                                    arrayOf(
+                                        contact3.id.toString(),
+                                        ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE
                                     )
                                 )
                                 .withValue(
                                     ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME,
-                                    ""
-                                )
+                                    null
+                                ) // Set to null if you want to clear
                                 .withValue(
                                     ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME,
-                                    contact4.name.toString()
+                                    addValue.name
                                 )
-                                .build())
+                                .build()
+                        )
+
                         cpo.add(
                             ContentProviderOperation
                                 .newUpdate(ContactsContract.Data.CONTENT_URI)
                                 .withSelection(
-                                    ContactsContract.Data.CONTACT_ID + "=?" + " AND " + ContactsContract.Data.MIMETYPE + "=?" + " AND " + ContactsContract.CommonDataKinds.Organization.TYPE + "=?",
-                                    arrayOf<String>(
-                                        contact4.id.toString(),
-                                        ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE.toString(),
-                                        ContactsContract.CommonDataKinds.Phone.TYPE_HOME.toString()
-                                        )
+                                    ContactsContract.Data.RAW_CONTACT_ID + " = ? AND "
+                                            + ContactsContract.Data.MIMETYPE + " = ?",
+                                    arrayOf(
+                                        contact3.id.toString(),
+                                        ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE,
+                                    )
                                 )
                                 .withValue(
                                     ContactsContract.CommonDataKinds.Phone.NUMBER,
-                                    contact4.numbers.toString()
-                                )
-                                .build())
-                        updatedContacts[updatedContacts.indexOf(contact4)] = contact4
-                        Log.d("updating id", contact4.id)
-                        contentResolver.applyBatch(ContactsContract.AUTHORITY, cpo)
-                        contacts.value = updatedContacts
+                                    addValue.numbers
+                                ) // Access the first number in the list
+                                .build()
+                        )
+                        try {
+                            contentResolver.applyBatch(ContactsContract.AUTHORITY, cpo)
+                            Log.d("done updating id", contact3.id)
+                        } catch (e: Exception) {
+                            Log.e("applyBatch", "Error updating contact", e)
+                        }
                     },
-                    contact = contact4,
                 )
             }
 
@@ -349,7 +412,11 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    fun DisplayList(contacts: List<Contact2>, onClick: (Contact2) -> Unit, onLongClickLabel: (Contact2) -> Unit) {
+    fun DisplayList(
+        contacts: List<Contact2>,
+        onClick: (Contact2) -> Unit,
+        onLongClickLabel: (Contact2) -> Unit
+    ) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -393,6 +460,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState<Boolean>) {
@@ -490,7 +558,14 @@ fun CustomDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState
                                     return@Button
                                 }
                                 //chỗ này trả data ngược ra ngoài đọc thêm về high order fucntion
-                                onAddValueSuccess.invoke(Contact2("",name.value, phoneNumber.value,""))
+                                onAddValueSuccess.invoke(
+                                    Contact2(
+                                        "",
+                                        name.value,
+                                        phoneNumber.value,
+                                        ""
+                                    )
+                                )
                             },
                             shape = RoundedCornerShape(50.dp),
                             modifier = Modifier
@@ -508,11 +583,11 @@ fun CustomDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UpdateDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState<Boolean>, contact: Contact2) {
+fun UpdateDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState<Boolean>) {
     val txtFieldError = remember { mutableStateOf("") }
     val name = remember { mutableStateOf("") }
     val phoneNumber = remember { mutableStateOf("") }
-    if(showDialog.value){
+    if (showDialog.value) {
         Dialog(onDismissRequest = {}) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -604,7 +679,16 @@ fun UpdateDialog(onAddValueSuccess: (Contact2) -> Unit, showDialog: MutableState
                                         return@Button
                                     }
                                     //chỗ này trả data ngược ra ngoài đọc thêm về high order fucntion
-                                    onAddValueSuccess.invoke(Contact2(contact.id,name.value, phoneNumber.value,contact.emails))
+                                    onAddValueSuccess.invoke(
+                                        Contact2(
+                                            "",
+                                            name.value,
+                                            phoneNumber.value,
+                                            ""
+                                        )
+                                    )
+                                    Log.d("name from dialog", name.value)
+                                    Log.d("number from dialog", phoneNumber.value)
                                     showDialog.value = false
                                 },
                                 shape = RoundedCornerShape(50.dp),
