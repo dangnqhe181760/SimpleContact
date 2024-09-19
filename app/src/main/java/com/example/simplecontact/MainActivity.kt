@@ -361,6 +361,7 @@ class MainActivity : ComponentActivity() {
                         } catch (e: Exception) {
                             Log.e("applyBatch", "Error updating contact", e)
                         }
+                        contactToUpdate = null
                     },
                 )
             }
