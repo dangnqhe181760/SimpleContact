@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
@@ -48,7 +49,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +72,9 @@ import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 
 data class Contact2(
@@ -81,14 +84,22 @@ data class Contact2(
     val emails: String = ""
 )
 
+data class Contact(
+    val createdAt: String,
+    val name: String,
+    val avatar: String,
+    val id: String
+)
+
 
 class MainActivity : ComponentActivity() {
     val contacts: MutableState<List<Contact2>> = mutableStateOf(emptyList())
-    @OptIn(ExperimentalComposeUiApi::class)
+    @OptIn(ExperimentalComposeUiApi::class, DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
+        val viewModel: MainViewModel by viewModels()
+        viewModel.getContacts()
         setContent {
             Scaffold(
                 modifier = Modifier.semantics {
@@ -289,6 +300,7 @@ class MainActivity : ComponentActivity() {
                         val cpo = ArrayList<ContentProviderOperation>()
                         updatedContacts.remove(contact2)
                         Log.d("deleting id", contact2.id)
+                        //Delete the contact
                         cpo.add(
                             ContentProviderOperation.newDelete(ContactsContract.RawContacts.CONTENT_URI)
                                 .withSelection(
@@ -317,6 +329,7 @@ class MainActivity : ComponentActivity() {
                         val cpo = ArrayList<ContentProviderOperation>()
                         Log.d("name", addValue.name)
                         Log.d("number", addValue.numbers)
+                        // Update the name
                         cpo.add(
                             ContentProviderOperation
                                 .newUpdate(ContactsContract.Data.CONTENT_URI)
@@ -337,7 +350,7 @@ class MainActivity : ComponentActivity() {
                                 )
                                 .build()
                         )
-
+                        // Update the phone number
                         cpo.add(
                             ContentProviderOperation
                                 .newUpdate(ContactsContract.Data.CONTENT_URI)
