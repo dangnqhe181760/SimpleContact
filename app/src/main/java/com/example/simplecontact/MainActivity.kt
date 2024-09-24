@@ -76,6 +76,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberImagePainter
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -222,7 +226,7 @@ class MainActivity : ComponentActivity() {
         val showRemoveContactDialog = remember { mutableStateOf(false) }
         val showUpdateContactDialog = remember { mutableStateOf(false) }
         val showLogoutDialog = remember { mutableStateOf(false) }
-        DisplayListApi(apiContacts.value)
+        val navController: NavHostController = rememberNavController()
         if (showLogoutDialog.value) {
             CustomDialog(
                 onAddValueSuccess = { addValue ->
@@ -310,6 +314,7 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -322,6 +327,7 @@ class MainActivity : ComponentActivity() {
             }) {
                 Text(text = "Add new contact")
             }
+
 
             contactToRemove?.let { contact2 ->
                 DialogExample(
@@ -410,20 +416,37 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            // Pass the updated contact list
-            DisplayList(
-                contacts = contactList,
-                onClick = { contact2 ->
-                    contactToRemove = contact2
-                    showRemoveContactDialog.value = true
-                    Log.d("click", contact2.name)
-                },
-                onLongClickLabel = { contact3 ->
-                    contactToUpdate = contact3
-                    showUpdateContactDialog.value = true
-                    Log.d("long click", contact3.name)
-                },
-            )
+
+            NavHost(
+                navController = navController,
+                startDestination = NavigationRoutes.MainContacts.name,
+            ) {
+                composable(route = NavigationRoutes.MainContacts.name) {
+                    // Pass the updated contact list
+                    DisplayList(
+                        contacts = contactList,
+                        onClick = { contact2 ->
+                            contactToRemove = contact2
+                            showRemoveContactDialog.value = true
+                            Log.d("click", contact2.name)
+                        },
+                        onLongClickLabel = { contact3 ->
+                            contactToUpdate = contact3
+                            showUpdateContactDialog.value = true
+                            Log.d("long click", contact3.name)
+                        },
+                        onOnlineClick = {
+                            navController.navigate(NavigationRoutes.ApiContacts.name)
+                        }
+                    )
+                }
+                composable(route = NavigationRoutes.ApiContacts.name) {
+                    DisplayListApi(
+                        contacts = apiContacts.value
+                    )
+                }
+            }
+
         }
     }
 
@@ -459,12 +482,19 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun DisplayList(
         contacts: List<Contact2>,
+        onOnlineClick: () -> Unit,
         onClick: (Contact2) -> Unit,
         onLongClickLabel: (Contact2) -> Unit
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
+            Button(onClick = {
+                onOnlineClick.invoke()
+            }) {
+                Text(text = "Get online contact")
+            }
+
             Text(
                 text = "Contacts",
                 modifier = Modifier.padding(16.dp),
