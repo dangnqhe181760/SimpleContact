@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,9 +75,13 @@ import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.lifecycleScope
+import coil.compose.rememberImagePainter
+import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.io.Serializable
 
 
 data class Contact2(
@@ -85,11 +92,29 @@ data class Contact2(
 )
 
 data class Contact(
-    val createdAt: String,
-    val name: String,
-    val avatar: String,
-    val id: String
-)
+    @SerializedName("location")
+    val address: String = "",
+
+    @SerializedName("email")
+    val email: String = "",
+
+    @SerializedName("cell")
+    val phone: String = "",
+
+    @SerializedName("picture")
+    val pictureUrl: String = "",
+
+    @SerializedName("id")
+    val id: Int = 0, // Use Int for numerical ID
+
+    @SerializedName("first_name")
+    val firstName: String = "",
+
+    @SerializedName("last_name")
+    val lastName: String = "",
+
+//    val fullName: String = "$firstName $lastName".trim() // Derived property
+) : Serializable
 
 
 class MainActivity : ComponentActivity() {
@@ -98,8 +123,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val viewModel: MainViewModel by viewModels()
-        viewModel.getContacts()
         setContent {
             Scaffold(
                 modifier = Modifier.semantics {
@@ -186,12 +209,20 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun HomePage() {
+        val apiContacts = remember { mutableStateOf(emptyList<Contact>()) }
+        val viewModel: MainViewModel by viewModels()
+        LaunchedEffect(apiContacts) {
+            apiContacts.value = viewModel.getContacts()
+            // Now you have the contactsList, do something with it (e.g., display in UI)
+            Log.d("Contacts from Activity", apiContacts.toString())
+        }
         val contactList by remember { contacts } // Observe the state for changes
         var contactToRemove by remember { mutableStateOf<Contact2?>(null) }
         var contactToUpdate by remember { mutableStateOf<Contact2?>(null) }
         val showRemoveContactDialog = remember { mutableStateOf(false) }
         val showUpdateContactDialog = remember { mutableStateOf(false) }
         val showLogoutDialog = remember { mutableStateOf(false) }
+        DisplayListApi(apiContacts.value)
         if (showLogoutDialog.value) {
             CustomDialog(
                 onAddValueSuccess = { addValue ->
@@ -474,6 +505,68 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+@Composable
+fun DisplayListApi(
+    contacts: List<Contact>,
+//    onClick: (Contact) -> Unit,
+//    onLongClickLabel: (Contact) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Text(
+            text = "Contacts",
+            modifier = Modifier.padding(16.dp),
+            style = TextStyle(
+                color = Color.Black,
+                fontSize = TextUnit(value = 20.0F, type = TextUnitType.Sp)
+            ),
+            fontWeight = FontWeight.Black
+        )
+
+        LazyColumn {
+            items(contacts.size) { index ->
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.fillMaxWidth()
+                ){
+                    Image( // The Image component to load the image with the Coil library
+                        painter = rememberImagePainter(data = contacts[index].pictureUrl),
+                        contentDescription = null,
+                        modifier = Modifier.size(50.dp, 50.dp)
+                    )
+                    Text(
+                        text = contacts[index].firstName + " " + contacts[index].lastName +" - " + contacts[index].phone,
+                        modifier = Modifier
+                            .padding(16.dp),
+//                        .pointerInput(Unit) {
+//                            detectTapGestures(
+//                                onLongPress = {
+//                                    // perform some action here..
+//                                    onLongClickLabel.invoke(contacts[index])
+//                                },
+//                                onTap = {
+//                                    // perform some action here..
+//                                    onClick.invoke(contacts[index])
+//                                }
+//                            )
+//                        },
+                        style = TextStyle(
+                            color = Color.Black,
+                            fontSize = TextUnit(value = 20.0F, type = TextUnitType.Sp)
+                        ),
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
