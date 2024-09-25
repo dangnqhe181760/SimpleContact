@@ -51,8 +51,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,16 +75,15 @@ import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import coil.compose.rememberImagePainter
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.io.Serializable
 
 
@@ -215,11 +214,13 @@ class MainActivity : ComponentActivity() {
     fun HomePage() {
         val apiContacts = remember { mutableStateOf(emptyList<Contact>()) }
         val viewModel: MainViewModel by viewModels()
-        LaunchedEffect(apiContacts) {
-            apiContacts.value = viewModel.getContacts()
-            // Now you have the contactsList, do something with it (e.g., display in UI)
-            Log.d("Contacts from Activity", apiContacts.toString())
-        }
+        val observedContacts by viewModel.contactResponse.collectAsState(initial = emptyList())
+        viewModel.proceedContact()
+//        LaunchedEffect(apiContacts) {
+//            apiContacts.value = viewModel.getContacts()
+//            // Now you have the contactsList, do something with it (e.g., display in UI)
+//            Log.d("Contacts from Activity", apiContacts.toString())
+//        }
         val contactList by remember { contacts } // Observe the state for changes
         var contactToRemove by remember { mutableStateOf<Contact2?>(null) }
         var contactToUpdate by remember { mutableStateOf<Contact2?>(null) }
@@ -419,9 +420,9 @@ class MainActivity : ComponentActivity() {
 
             NavHost(
                 navController = navController,
-                startDestination = NavigationRoutes.MainContacts.name,
+                startDestination = NavigationRoutes.MainContacts.route,
             ) {
-                composable(route = NavigationRoutes.MainContacts.name) {
+                composable(route = NavigationRoutes.MainContacts.route) {
                     // Pass the updated contact list
                     DisplayList(
                         contacts = contactList,
@@ -436,14 +437,30 @@ class MainActivity : ComponentActivity() {
                             Log.d("long click", contact3.name)
                         },
                         onOnlineClick = {
-                            navController.navigate(NavigationRoutes.ApiContacts.name)
+                            navController.navigate(NavigationRoutes.ApiContacts.route)
                         }
                     )
                 }
-                composable(route = NavigationRoutes.ApiContacts.name) {
+                composable(route = NavigationRoutes.ApiContacts.route) {
                     DisplayListApi(
-                        contacts = apiContacts.value
+                        contacts = observedContacts!!,
+                        onClick = { contact ->
+                            navController.navigate(NavigationRoutes.ApiDetailContact.createRoute(
+                                contact.id.toString()
+                            ))
+                        }
                     )
+                }
+                composable(
+                    route = NavigationRoutes.ApiDetailContact.route,
+                    arguments = listOf(navArgument("contactId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val contactId = backStackEntry.arguments?.getString("contactId")
+                    val contact = observedContacts?.find { it.id.toString() == contactId }
+
+                    if (contact != null) {
+                        ContactDetailApi(contact = contact)
+                    }
                 }
             }
 
@@ -475,6 +492,24 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             )
+        }
+    }
+
+    @Composable
+    fun ContactDetailApi(contact: Contact){
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Text(
+                text = contact.firstName + " " + contact.lastName,
+                modifier = Modifier.padding(16.dp),
+                style = TextStyle(
+                    color = Color.Black,
+                    fontSize = TextUnit(value = 20.0F, type = TextUnitType.Sp)
+                ),
+                fontWeight = FontWeight.Black
+            )
+
         }
     }
 
@@ -536,10 +571,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DisplayListApi(
     contacts: List<Contact>,
-//    onClick: (Contact) -> Unit,
+    onClick: (Contact) -> Unit,
 //    onLongClickLabel: (Contact) -> Unit
 ) {
     Column(
@@ -558,8 +594,8 @@ fun DisplayListApi(
         LazyColumn {
             items(contacts.size) { index ->
                 Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ){
                     Image( // The Image component to load the image with the Coil library
@@ -568,21 +604,21 @@ fun DisplayListApi(
                         modifier = Modifier.size(50.dp, 50.dp)
                     )
                     Text(
-                        text = contacts[index].firstName + " " + contacts[index].lastName +" - " + contacts[index].phone,
+                        text = contacts[index].firstName + " " + contacts[index].lastName +"\n" + contacts[index].phone,
                         modifier = Modifier
-                            .padding(16.dp),
-//                        .pointerInput(Unit) {
-//                            detectTapGestures(
-//                                onLongPress = {
-//                                    // perform some action here..
-//                                    onLongClickLabel.invoke(contacts[index])
-//                                },
-//                                onTap = {
-//                                    // perform some action here..
-//                                    onClick.invoke(contacts[index])
-//                                }
-//                            )
-//                        },
+                            .padding(16.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onLongPress = {
+                                        // perform some action here..
+//                                        onLongClickLabel.invoke(contacts[index])
+                                    },
+                                    onTap = {
+                                        // perform some action here..
+                                        onClick.invoke(contacts[index])
+                                    }
+                                )
+                            },
                         style = TextStyle(
                             color = Color.Black,
                             fontSize = TextUnit(value = 20.0F, type = TextUnitType.Sp)
