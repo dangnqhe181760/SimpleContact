@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -62,6 +63,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.semantics
@@ -70,6 +72,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
@@ -116,7 +119,6 @@ data class Contact(
     @SerializedName("last_name")
     val lastName: String = "",
 
-//    val fullName: String = "$firstName $lastName".trim() // Derived property
 ) : Serializable
 
 
@@ -323,11 +325,6 @@ class MainActivity : ComponentActivity() {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Button(onClick = {
-                showLogoutDialog.value = true
-            }) {
-                Text(text = "Add new contact")
-            }
 
 
             contactToRemove?.let { contact2 ->
@@ -440,6 +437,19 @@ class MainActivity : ComponentActivity() {
                             navController.navigate(NavigationRoutes.ApiContacts.route)
                         }
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Spacer(modifier = Modifier.weight(1f)) // Pushes the button to the right
+                        Button(
+                            onClick = {
+                                showLogoutDialog.value = true
+                            },
+                            modifier = Modifier.padding(end = 16.dp) // Add padding on the right side
+                        ) {
+                            Text(text = "Add new contact")
+                        }
+                    }
                 }
                 composable(route = NavigationRoutes.ApiContacts.route) {
                     DisplayListApi(
@@ -459,7 +469,7 @@ class MainActivity : ComponentActivity() {
                     val contact = observedContacts?.find { it.id.toString() == contactId }
 
                     if (contact != null) {
-                        ContactDetailApi(contact = contact)
+                        ContactDetailScreen(contact = contact)
                     }
                 }
             }
@@ -496,22 +506,94 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun ContactDetailApi(contact: Contact){
+    fun ContactDetailScreen(contact: Contact) {
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
+            // Profile Picture
+            if (contact.pictureUrl.isNotEmpty()) {
+                Image(
+                    painter = rememberImagePainter(data = contact.pictureUrl),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .padding(bottom = 16.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            // Full Name
             Text(
-                text = contact.firstName + " " + contact.lastName,
-                modifier = Modifier.padding(16.dp),
+                text = "${contact.firstName} ${contact.lastName}",
                 style = TextStyle(
                     color = Color.Black,
-                    fontSize = TextUnit(value = 20.0F, type = TextUnitType.Sp)
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
                 ),
-                fontWeight = FontWeight.Black
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
+            // Email (Clickable)
+            if (contact.email.isNotEmpty()) {
+                ClickableText(
+                    text = androidx.compose.ui.text.AnnotatedString(contact.email),
+                    style = TextStyle(
+                        color = Color.Blue,
+                        fontSize = 16.sp,
+                        textDecoration = TextDecoration.Underline
+                    ),
+                    onClick = {
+                        // Handle email click action, e.g., open email app
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Phone
+            if (contact.phone.isNotEmpty()) {
+                Text(
+                    text = "Phone: ${contact.phone}",
+                    style = TextStyle(
+                        color = Color.Black,
+                        fontSize = 16.sp
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            // Address
+            if (contact.address.isNotEmpty()) {
+                Text(
+                    text = "Address: ${contact.address}",
+                    style = TextStyle(
+                        color = Color.Black,
+                        fontSize = 16.sp
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
         }
     }
+
+//    @Composable
+//    fun ContactDetailApi(contact: Contact){
+//        Column(
+//            modifier = Modifier.fillMaxSize()
+//        ) {
+//            Text(
+//                text = contact.firstName + " " + contact.lastName,
+//                modifier = Modifier.padding(16.dp),
+//                style = TextStyle(
+//                    color = Color.Black,
+//                    fontSize = TextUnit(value = 20.0F, type = TextUnitType.Sp)
+//                ),
+//                fontWeight = FontWeight.Black
+//            )
+//
+//        }
+//    }
 
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
